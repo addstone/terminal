@@ -99,6 +99,8 @@ namespace winrt::Microsoft::Terminal::TerminalControl::implementation
         _terminal->SetMouseModeChangedCallback([=]() {
             _TerminalMouseModeChanged();
         });
+        auto pfnTerminalCursorPositionChanged = std::bind(&TermControl::_TerminalCursorPositionChanged, this);
+        _terminal->SetCursorPositionChangedCallback(pfnTerminalCursorPositionChanged);
 
         // Subscribe to the connection's disconnected event and call our connection closed handlers.
         _connectionStateChangedRevoker = _connection.StateChanged(winrt::auto_revoke, [this](auto&& /*s*/, auto&& /*v*/) {
@@ -1867,6 +1869,31 @@ namespace winrt::Microsoft::Terminal::TerminalControl::implementation
             {
                 // Update our scrollbar
                 _ScrollbarUpdater(ScrollBar(), viewTop, viewHeight, bufferSize);
+            }
+        }
+    }
+
+    // Method Description:
+    // - Tells TSFInputControl to redraw the Canvas/TextBlock so it'll update
+    //   to be where the current cursor position is.
+    // Arguments:
+    // - N/A
+    winrt::fire_and_forget TermControl::_TerminalCursorPositionChanged()
+    {
+        if (_closing.load())
+        {
+            return;
+        }
+
+        auto weakThis{ get_weak() };
+
+        co_await winrt::resume_foreground(Dispatcher());
+
+        if (auto control{ weakThis.get() })
+        {
+            if (!_closing.load())
+            {
+                TSFInputControl().TryRedrawCanvas();
             }
         }
     }
